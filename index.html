@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ADIVO Field Test Data</title>
+    <style>
+        /* --- CSS STYLING --- */
+        body {
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f0ebf8;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+        }
+        .container {
+            background-color: white;
+            width: 100%;
+            max-width: 640px;
+            border-radius: 8px;
+            border-top: 10px solid #673ab7;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+            padding: 30px;
+        }
+        h1 { font-size: 32px; margin-top: 0; color: #202124; }
+        p { color: #5f6368; font-size: 14px; }
+        
+        .form-group {
+            margin-bottom: 20px;
+            padding: 15px;
+            border: 1px solid #dadce0;
+            border-radius: 8px;
+        }
+        .form-group:focus-within {
+            border-left: 5px solid #4285f4;
+        }
+        label {
+            display: block;
+            font-weight: 500;
+            margin-bottom: 10px;
+            color: #202124;
+        }
+        input[type="text"], select, textarea {
+            width: 100%;
+            box-sizing: border-box; 
+            padding: 10px;
+            border: 1px solid #dadce0;
+            border-radius: 4px;
+            font-size: 14px;
+            margin-top: 5px;
+        }
+        
+        /* RPE Slider Styling */
+        input[type="range"] { width: 100%; margin: 10px 0; }
+        .range-value { font-weight: bold; color: #673ab7; font-size: 18px; }
+
+        input[readonly] { background-color: #f1f3f4; color: #5f6368; border: none; }
+        
+        button {
+            background-color: #673ab7;
+            color: white;
+            border: none;
+            padding: 10px 24px;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 10px;
+            transition: background 0.2s;
+        }
+        button:hover { background-color: #5e35b1; }
+        button:disabled { background-color: #ccc; cursor: not-allowed; }
+        
+        #start-btn { background-color: #1a73e8; width: 100%; padding: 15px; font-size: 16px; margin-bottom: 20px; }
+        #search-btn { background-color: #4285f4; width: auto; margin-top: 0; }
+        #confirm-btn { background-color: #34a853; width: 100%; padding: 12px; margin-top: 15px; }
+        
+        .loading { color: #d93025; font-weight: bold; display: none; margin-top: 10px;}
+        
+        #location_name_display { 
+            font-size: 18px; 
+            font-weight: bold; 
+            margin-bottom: 15px; 
+            color: #4285f4; 
+            padding-bottom: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        /* Layout Helpers */
+        .flex-row { display: flex; gap: 10px; }
+        .flex-col { flex: 1; }
+
+        /* Screen Visibility */
+        #setup-screen { display: block; }
+        #confirmation-screen { display: none; }
+        #main-form { display: none; }
+        
+        .override-container {
+            font-size: 12px; display: flex; align-items: center; margin-top: 15px; padding-top: 10px; border-top: 1px dashed #ccc;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>ADIVO Field Test Form 📝</h1>
+    <p>Ensure device is synced before starting.</p>
+
+    <div id="setup-screen">
+        <h3>Step 1: Session Setup</h3>
+        <p>Click below to detect location and fetch marine weather.</p>
+        
+        <button id="start-btn" onclick="startSession()">📍 FIND LOCATION & WEATHER</button>
+        <div id="status-msg" class="loading">Requesting Location Access...</div>
+        
+        <div id="retry-container" style="display: none; text-align: center; margin-top: 15px; padding: 10px; background: #fff3e0; border-radius: 4px;">
+             <p style="color: #d93025; font-size: 13px; margin: 0 0 10px 0;">Location not found. Try adding "Australia" or be more specific.</p>
+             <button onclick="retrySearch()" style="background-color: #e37400; width: 100%;">Retry with Auto-Fix</button>
+        </div>
+        
+        <hr style="margin: 20px 0; border: 0; border-top: 1px solid #eee;">
+        
+        <label style="font-size: 12px; color: #666;">Or Search Manually (if GPS fails)</label>
+        <div class="flex-row">
+            <input type="text" id="manual_location" list="location_suggestions" placeholder="e.g. Burleigh Heads (Specific beach)" spellcheck="true" oninput="fetchSuggestions()">
+            <datalist id="location_suggestions"></datalist>
+            <button type="button" id="search-btn" onclick="manualSearch()">Search</button>
+        </div>
+    </div>
+
+    <div id="confirmation-screen">
+        <h3>Step 2: Confirm Environment</h3>
+        <p>Review the fetched data below. Check "Edit Data" to override any incorrect values.</p>
+
+        <div class="form-group" style="background-color: #e8f0fe;">
+            <div id="location_name_display">Detecting Location...</div>
+            
+            <label style="font-size: 12px; color: #666;">GPS Coordinates</label>
+            <input type="text" id="gps_confirm" readonly>
+
+            <div class="flex-row">
+                <div class="flex-col">
+                    <label style="font-size: 12px; color: #666;">Swell Height</label>
+                    <input type="text" id="wave_height_confirm" readonly>
+                </div>
+                <div class="flex-col">
+                    <label style="font-size: 12px; color: #666;">Swell Period</label>
+                    <input type="text" id="swell_period_confirm" readonly>
+                </div>
+            </div>
+            
+            <div class="flex-row">
+                <div class="flex-col">
+                    <label style="font-size: 12px; color: #666;">Tide State</label>
+                    <input type="text" id="tide_level_confirm" readonly>
+                </div>
+                <div class="flex-col">
+                    <label style="font-size: 12px; color: #666;">Wind Speed</label>
+                    <input type="text" id="wind_speed_confirm" readonly>
+                </div>
+            </div>
+            
+            <div class="override-container">
+                <input type="checkbox" id="manual_override" onchange="toggleOverride()" style="width: auto; margin: 0 5px 0 0;">
+                <label for="manual_override" style="display:inline; font-weight:normal; cursor:pointer; margin-bottom: 0;">Edit Data (Override API)</label>
+            </div>
+        </div>
+
+        <button id="confirm-btn" onclick="confirmData()">✅ CONFIRM & START TESTING</button>
+        <button onclick="location.reload()" style="background-color: #999; width: 100%; margin-top: 10px;">Cancel / Restart</button>
+    </div>
+
+    <div id="main-form">
+        <div style="background: #e8f0fe; padding: 10px; border-radius: 4px; margin-bottom: 15px; font-size: 13px;">
+            <strong>Active Session:</strong> <span id="active_location_name"></span><br>
+            <span id="active_conditions"></span>
+             <div style="margin-top: 10px; display: flex; justify-content: space-between; align-items: center;">
+                <button onclick="refreshSession()" style="font-size: 11px; padding: 5px 10px; background-color: #1a73e8; margin: 0; width: auto;">🔄 Refresh Weather</button>
+                <span style="font-size: 12px; color: #d93025; text-decoration: underline; cursor: pointer;" onclick="location.reload()">End Session</span>
+            </div>
+        </div>
+
+        <form name="submit-to-google-sheet">
+            <input type="hidden" name="gps" id="gps">
+            <input type="hidden" name="wave_height" id="wave_height">
+            <input type="hidden" name="swell_period" id="swell_period">
+            <input type="hidden" name="tide_level" id="tide_level">
+            <input type="hidden" name="wind_speed" id="wind_speed">
+            <input type="hidden" name="location_name_db" id="location_name_db">
+            <input type="hidden" name="timestamp" id="timestamp">
+
+            <div class="form-group">
+                <label>Observer Name</label>
+                <input type="text" name="observer" id="observer" required>
+            </div>
+
+            <div class="form-group">
+                <label>Test Case</label>
+                <select name="test_case" id="test_case">
+                    <option value="Case A - Pool">Case A - Pool</option>
+                    <option value="Case B - Swim">Case B - Swim</option>
+                    <option value="Case C - Craft">Case C - Craft</option>
+                    <option value="Case D - Durability">Case D - Durability</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>RPE (Exertion): <span id="rpe_val" class="range-value">5</span> / 10</label>
+                <input type="range" name="rpe" id="rpe" min="1" max="10" value="5" oninput="document.getElementById('rpe_val').innerText = this.value">
+                <div style="display: flex; justify-content: space-between; font-size: 12px; color: #666;">
+                    <span>Easy</span>
+                    <span>Max Effort</span>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Notes / Failures</label>
+                <textarea name="notes" id="notes" rows="3" placeholder="e.g. Device rode up..."></textarea>
+            </div>
+
+            <button type="submit" id="submit-btn">Submit Test Result</button>
+        </form>
+    </div>
+</div>
+
+<script>
+    // **YOUR GOOGLE APPS SCRIPT URL HERE**
+    const scriptURL = 'https://script.google.com/macros/s/AKfycbw-hoDx3Xiy3-mW3-qy0ne4F4sv8MFxwZ4WxGnT_u9t8wr4s0-JXToGkILyQNfdtP8C7Q/exec'; 
+    
+    // UI Elements
+    const statusMsg = document.getElementById('status-msg');
+    const retryContainer = document.getElementById('retry-container');
+    const screens = {
+        setup: document.getElementById('setup-screen'),
+        confirm: document.getElementById('confirmation-screen'),
+        main: document.getElementById('main-form')
+    };
+    
+    // Data Fields
+    const displayFields = {
+        gps: document.getElementById('gps_confirm'),
+        wave: document.getElementById('wave_height_confirm'),
+        period: document.getElementById('swell_period_confirm'),
+        tide: document.getElementById('tide_level_confirm'),
+        wind: document.getElementById('wind_speed_confirm'),
+        name: document.getElementById('location_name_display')
+    };
+
+    let currentLat = null;
+    let currentLon = null;
+
+    // --- UTILITIES ---
+    function switchScreen(screenName) {
+        Object.values(screens).forEach(el => el.style.display = 'none');
+        screens[screenName].style.display = 'block';
+    }
+
+    function getCurrentHourISO() {
+        const date = new Date();
+        date.setMinutes(0, 0, 0);
+        return date.toISOString().slice(0, 16);
+    }
+
+    // --- SMART LOCATION SEARCH (Spiral Pattern - 10km) ---
+    // 0.1 degrees is approximately 10km
+    const SEARCH_OFFSETS = [
+        { lat: 0, lon: 0, label: "" },             // 1. Exact Spot
+        { lat: 0, lon: 0.1, label: " (East)" },    // 2. Try 10km East
+        { lat: 0, lon: -0.1, label: " (West)" },   // 3. Try 10km West
+        { lat: 0.1, lon: 0, label: " (North)" },   // 4. Try 10km North
+        { lat: -0.1, lon: 0, label: " (South)" }   // 5. Try 10km South
+    ];
+
+    function startSession() {
+        document.getElementById('start-btn').style.display = 'none';
+        statusMsg.style.display = 'block';
+        retryContainer.style.display = 'none';
+
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                (pos) => {
+                    currentLat = pos.coords.latitude;
+                    currentLon = pos.coords.longitude;
+                    fetchData(currentLat, currentLon);
+                }, 
+                (err) => {
+                    console.error(err);
+                    alert("GPS Signal Failed. Please use Manual Search.");
+                    statusMsg.style.display = 'none';
+                    document.getElementById('start-btn').style.display = 'block';
+                }, 
+                { enableHighAccuracy: true, timeout: 15000 }
+            );
+        } else {
+            alert("Geolocation not supported.");
+        }
+    }
+
+    function manualSearch() {
+        const query = document.getElementById('manual_location').value;
+        if (!query) return alert("Please enter a location name");
+        
+        statusMsg.innerText = "Searching...";
+        statusMsg.style.display = 'block';
+        retryContainer.style.display = 'none';
+
+        const searchQuery = query.toLowerCase().includes('australia') ? query : `${query}, Australia`;
+
+        fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=1`)
+            .then(res => res.json())
+            .then(data => {
+                if (data?.length > 0) {
+                    currentLat = parseFloat(data[0].lat);
+                    currentLon = parseFloat(data[0].lon);
+                    fetchData(currentLat, currentLon);
+                } else {
+                    statusMsg.style.display = 'none';
+                    retryContainer.style.display = 'block';
+                }
+            })
+            .catch(() => {
+                alert("Search Network Error");
+                statusMsg.style.display = 'none';
+            });
+    }
+
+    function retrySearch() {
+        let input = document.getElementById('manual_location');
+        if (!input.value.includes("Australia")) {
+            input.value += ", Australia";
+        }
+        manualSearch();
+    }
+
+    function fetchData(lat, long) {
+        // Reset UI
+        displayFields.gps.value = `${lat.toFixed(4)}, ${long.toFixed(4)}`;
+        statusMsg.innerText = "Scanning 10km radius for waves...";
+        
+        // Get Location Name (Visual)
+        fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${long}`)
+            .then(res => res.json())
+            .then(data => {
+                const addr = data.address || {};
+                const name = addr.suburb || addr.town || addr.city || "Unknown Location";
+                displayFields.name.innerHTML = `📍 Location: ${name}`;
+                displayFields.name.dataset.name = name;
+            });
+
+        // Start Recursive Search
+        findNearestWaves(lat, long, 0);
+    }
+
+    function findNearestWaves(baseLat, baseLon, attemptIndex) {
+        if (attemptIndex >= SEARCH_OFFSETS.length) {
+            alert("⚠️ Could not find any wave data within 10km (Inland).\n\nSwitched to Manual Mode.");
+            enableManualMode();
+            return;
+        }
+
+        const offset = SEARCH_OFFSETS[attemptIndex];
+        const searchLat = baseLat + offset.lat;
+        const searchLon = baseLon + offset.lon;
+
+        if(attemptIndex > 0) {
+            statusMsg.innerText = `Inland detected. Checking 10km ${offset.label.trim()}...`;
+            console.log(`Checking ${offset.label} (${searchLat}, ${searchLon})`);
+        }
+
+        const currentTime = getCurrentHourISO();
+        const params = 'wave_height_significant,wave_period_peak,sea_level,wind_speed_10m';
+        const url = `https://marine-api.open-meteo.com/v1/marine?latitude=${searchLat}&longitude=${searchLon}&hourly=${params}&start_date=${currentTime.slice(0, 10)}&end_date=${currentTime.slice(0, 10)}&timezone=auto&wind_speed_unit=kmh`;
+
+        // Timeout protection
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+        fetch(url, { signal: controller.signal })
+            .then(res => res.json())
+            .then(data => {
+                clearTimeout(timeoutId);
+
+                if (!data.hourly) {
+                    findNearestWaves(baseLat, baseLon, attemptIndex + 1);
+                    return;
+                }
+
+                const timeIndex = data.hourly.time.findIndex(t => t.startsWith(currentTime));
+                const h = data.hourly;
+                
+                const wave = (timeIndex !== -1 && h.wave_height_significant) ? h.wave_height_significant[timeIndex] : null;
+
+                if (wave === null) {
+                    // Try next point
+                    findNearestWaves(baseLat, baseLon, attemptIndex + 1);
+                } else {
+                    // SUCCESS
+                    const period = h.wave_period_peak[timeIndex];
+                    const tide = h.sea_level ? h.sea_level[timeIndex] : null;
+                    const wind = h.wind_speed_10m ? h.wind_speed_10m[timeIndex] : null;
+
+                    displayFields.wave.value = `${wave.toFixed(2)} m`;
+                    displayFields.period.value = period ? `${period.toFixed(1)} sec` : "N/A";
+                    displayFields.tide.value = tide ? `${tide.toFixed(2)} m` : "N/A";
+                    displayFields.wind.value = wind ? `${wind.toFixed(1)} km/h` : "N/A";
+
+                    if (attemptIndex > 0) {
+                        displayFields.name.innerHTML += ` <span style="font-size:12px; color:#d93025;">(Nearest Coast ~10km)</span>`;
+                    }
+
+                    switchScreen('confirm');
+                }
+            })
+            .catch(() => {
+                // On error, proceed to next attempt (fail soft)
+                findNearestWaves(baseLat, baseLon, attemptIndex + 1);
+            });
+    }
+
+    function enableManualMode() {
+        switchScreen('confirm');
+        document.getElementById('manual_override').checked = true;
+        toggleOverride();
+        displayFields.wave.value = ""; 
+        displayFields.period.value = "";
+    }
+
+    function toggleOverride() {
+        const isChecked = document.getElementById('manual_override').checked;
+        const inputs = [displayFields.gps, displayFields.wave, displayFields.period, displayFields.tide, displayFields.wind];
+        
+        inputs.forEach(input => {
+            input.readOnly = !isChecked;
+            input.style.backgroundColor = isChecked ? '#fff' : '#f1f3f4';
+            input.style.border = isChecked ? '1px solid #4285f4' : 'none';
+        });
+    }
+
+    function confirmData() {
+        document.getElementById('gps').value = displayFields.gps.value;
+        document.getElementById('wave_height').value = displayFields.wave.value;
+        document.getElementById('swell_period').value = displayFields.period.value;
+        document.getElementById('tide_level').value = displayFields.tide.value;
+        document.getElementById('wind_speed').value = displayFields.wind.value;
+        
+        const locName = displayFields.name.dataset.name || "Manual Loc";
+        document.getElementById('location_name_db').value = locName;
+
+        document.getElementById('active_location_name').innerText = locName;
+        document.getElementById('active_conditions').innerText = 
+            `Conditions: ${displayFields.wave.value} swell, ${displayFields.wind.value} wind`;
+
+        switchScreen('main');
+    }
+
+    function refreshSession() {
+        if(confirm("Refresh weather data for current location?")) {
+            switchScreen('confirm');
+            fetchData(currentLat, currentLon);
+        }
+    }
+
+    // --- FORM SUBMISSION ---
+    const form = document.forms['submit-to-google-sheet'];
+    form.addEventListener('submit', e => {
+        e.preventDefault();
+        
+        const btn = document.getElementById('submit-btn');
+        if (btn.disabled) return; 
+
+        btn.disabled = true;
+        btn.innerText = "Sending...";
+        document.getElementById('timestamp').value = new Date().toLocaleString();
+        
+        fetch(scriptURL, { method: 'POST', body: new FormData(form)})
+            .then(response => {
+                if (response.ok) { 
+                    alert("✅ Data Saved Successfully!");
+                    document.getElementById('notes').value = "";
+                    document.getElementById('rpe').value = "5";
+                    document.getElementById('rpe_val').innerText = "5";
+                } else { 
+                    throw new Error("Server response not OK");
+                }
+            })
+            .catch(error => {
+                alert("❌ Error saving data. Please check internet connection.");
+            })
+            .finally(() => {
+                btn.disabled = false;
+                btn.innerText = "Submit Test Result";
+            });
+    });
+
+    let timer;
+    function fetchSuggestions() {
+        clearTimeout(timer);
+        const input = document.getElementById('manual_location');
+        const list = document.getElementById('location_suggestions');
+        if (input.value.length < 3) return;
+
+        timer = setTimeout(() => {
+            fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(input.value)}&addressdetails=1&limit=5`)
+                .then(r => r.json())
+                .then(data => {
+                    list.innerHTML = '';
+                    data.forEach(item => {
+                        const opt = document.createElement('option');
+                        opt.value = item.display_name;
+                        list.appendChild(opt);
+                    });
+                });
+        }, 500);
+    }
+</script>
+
+</body>
+</html>
